@@ -25,14 +25,20 @@ export async function POST(req: NextRequest) {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (apiKey) {
-    const geminiResult = await analyzeWithGemini({
-      apiKey,
-      file,
-      width,
-      height,
-      platform
-    });
-    return NextResponse.json(geminiResult);
+    try {
+      const geminiResult = await analyzeWithGemini({
+        apiKey,
+        file,
+        width,
+        height,
+        platform
+      });
+      if (geminiResult.issues.length > 0) {
+        return NextResponse.json(geminiResult);
+      }
+    } catch (error) {
+      console.error("Gemini error:", error);
+    }
   }
 
   // Fallback: deterministic mock if GEMINI_API_KEY isn't set.
@@ -70,7 +76,9 @@ async function analyzeWithGemini({
 Ты — экспертный UX-аудитор. Отвечай строго на русском.
 Проанализируй интерфейс по изображению и верни JSON строго по схеме.
 Укажи bbox в пикселях относительно оригинального изображения (0..width/height).
-Если критичных проблем нет — верни пустой массив issues.
+Не используй проценты или относительные значения — только пиксели.
+Старайся вернуть минимум 2 проблемы, если это возможно по изображению.
+Если проблем нет, верни пустой массив issues.
 Не добавляй поясняющий текст вне JSON.`;
 
   const userPrompt = `
@@ -82,6 +90,7 @@ async function analyzeWithGemini({
 2) Для каждой проблемы: severity, category, title, rationale (1-2 предложения), recommendation (1-2 предложения).
 3) bbox: x,y,w,h в пикселях (целые числа).
 Ограничение: максимум 6 проблем.
+Важно: bbox должен покрывать конкретный элемент интерфейса, из-за которого возникла проблема.
 `;
 
   const responseSchema = {
@@ -160,10 +169,10 @@ async function analyzeWithGemini({
             ]
           }
         ],
-        generationConfig: {
+        generation_config: {
           temperature: 0.2,
-          responseMimeType: "application/json",
-          responseJsonSchema: responseSchema
+          response_mime_type: "application/json",
+          response_schema: responseSchema
         }
       })
     }
@@ -180,7 +189,12 @@ async function analyzeWithGemini({
     throw new Error("Gemini response is empty");
   }
 
-  const parsed = JSON.parse(text) as AnalysisResult;
+  let parsed: AnalysisResult;
+  try {
+    parsed = JSON.parse(text) as AnalysisResult;
+  } catch {
+    throw new Error("Gemini returned non-JSON output");
+  }
   return normalizeResult(parsed, width, height);
 }
 
