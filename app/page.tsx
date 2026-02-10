@@ -160,9 +160,9 @@ export default function Page() {
 
         {screen === "landing" && (
           <section className="card">
-            <h1>Сканируйте интерфейсы и находите UX-проблемы</h1>
-            <p>Загрузите один скриншот и получите тепловую карту с рекомендациями.</p>
-            <button className="cta" onClick={() => setScreen("upload")}>Загрузить скриншот</button>
+            <h1>Ты можешь лучше</h1>
+            <p>Загрузи скрин — мы покажем где</p>
+            <button className="cta big-cta" onClick={() => setScreen("upload")}>Загрузить скриншот</button>
           </section>
         )}
 
