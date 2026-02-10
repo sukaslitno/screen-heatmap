@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { AnalysisResult } from "@/lib/contracts";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED = ["image/png", "image/jpeg", "image/webp"];
@@ -23,20 +23,192 @@ export async function POST(req: NextRequest) {
   const height = Number(formData.get("height")) || 900;
   const platform = String(formData.get("platform") || "web");
 
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (apiKey) {
+    const geminiResult = await analyzeWithGemini({
+      apiKey,
+      file,
+      width,
+      height,
+      platform
+    });
+    return NextResponse.json(geminiResult);
+  }
+
+  // Fallback: deterministic mock if GEMINI_API_KEY isn't set.
   const seed = hashString(`${file.name}-${file.size}-${width}-${height}-${platform}`);
   const rand = makeRand(seed);
   const issues = generateIssues(width, height, rand);
 
-  const result: AnalysisResult = {
+  return NextResponse.json({
     image: { width, height },
     issues,
     meta: {
       low_quality_warning: width < 640 || height < 400,
       processing_ms: 900 + Math.floor(rand() * 1200)
     }
+  } satisfies AnalysisResult);
+}
+
+async function analyzeWithGemini({
+  apiKey,
+  file,
+  width,
+  height,
+  platform
+}: {
+  apiKey: string;
+  file: File;
+  width: number;
+  height: number;
+  platform: string;
+}): Promise<AnalysisResult> {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const base64 = buffer.toString("base64");
+
+  const systemInstruction = `
+Ты — экспертный UX-аудитор. Отвечай строго на русском.
+Проанализируй интерфейс по изображению и верни JSON строго по схеме.
+Укажи bbox в пикселях относительно оригинального изображения (0..width/height).
+Если критичных проблем нет — верни пустой массив issues.
+Не добавляй поясняющий текст вне JSON.`;
+
+  const userPrompt = `
+Контекст:
+- Платформа: ${platform}
+- Размер изображения: ${width}x${height} px
+Нужно:
+1) Найти UX-проблемы.
+2) Для каждой проблемы: severity, category, title, rationale (1-2 предложения), recommendation (1-2 предложения).
+3) bbox: x,y,w,h в пикселях (целые числа).
+Ограничение: максимум 6 проблем.
+`;
+
+  const responseSchema = {
+    type: "object",
+    properties: {
+      image: {
+        type: "object",
+        properties: {
+          width: { type: "integer" },
+          height: { type: "integer" }
+        },
+        required: ["width", "height"]
+      },
+      issues: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            bbox: {
+              type: "object",
+              properties: {
+                x: { type: "integer" },
+                y: { type: "integer" },
+                w: { type: "integer" },
+                h: { type: "integer" }
+              },
+              required: ["x", "y", "w", "h"]
+            },
+            severity: { type: "string", enum: ["high", "medium", "low"] },
+            category: {
+              type: "string",
+              enum: ["hierarchy", "copy", "accessibility", "forms", "navigation", "visual", "cta", "layout"]
+            },
+            title: { type: "string" },
+            rationale: { type: "string" },
+            recommendation: { type: "string" }
+          },
+          required: ["id", "bbox", "severity", "category", "title", "rationale", "recommendation"]
+        }
+      },
+      meta: {
+        type: "object",
+        properties: {
+          low_quality_warning: { type: "boolean" },
+          processing_ms: { type: "integer" }
+        }
+      }
+    },
+    required: ["image", "issues"]
   };
 
-  return NextResponse.json(result);
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: systemInstruction }]
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                inline_data: {
+                  mime_type: file.type,
+                  data: base64
+                }
+              },
+              { text: userPrompt }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: "application/json",
+          responseJsonSchema: responseSchema
+        }
+      })
+    }
+  );
+
+  if (!res.ok) {
+    const payload = await res.text();
+    throw new Error(`Gemini error: ${payload}`);
+  }
+
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error("Gemini response is empty");
+  }
+
+  const parsed = JSON.parse(text) as AnalysisResult;
+  return normalizeResult(parsed, width, height);
+}
+
+function normalizeResult(result: AnalysisResult, width: number, height: number): AnalysisResult {
+  const issues = (result.issues || []).map((issue, idx) => {
+    const x = clampInt(issue.bbox?.x ?? 0, 0, width - 1);
+    const y = clampInt(issue.bbox?.y ?? 0, 0, height - 1);
+    const w = clampInt(issue.bbox?.w ?? 40, 10, width - x);
+    const h = clampInt(issue.bbox?.h ?? 40, 10, height - y);
+    return {
+      ...issue,
+      id: issue.id || `iss_${idx + 1}`,
+      bbox: { x, y, w, h }
+    };
+  });
+  return {
+    image: { width, height },
+    issues,
+    meta: {
+      low_quality_warning: width < 640 || height < 400,
+      processing_ms: result.meta?.processing_ms
+    }
+  };
+}
+
+function clampInt(value: number, min: number, max: number) {
+  if (Number.isNaN(value)) return min;
+  return Math.min(max, Math.max(min, Math.round(value)));
 }
 
 type Rand = () => number;
@@ -64,27 +236,27 @@ function generateIssues(width: number, height: number, rand: Rand): AnalysisResu
   const templates = [
     {
       category: "cta",
-      title: "Primary CTA lacks visual priority",
-      rationale: "The CTA blends with surrounding elements and loses attention.",
-      recommendation: "Increase contrast and size to make the CTA dominant."
+      title: "Главный CTA теряет визуальный приоритет",
+      rationale: "Кнопка сливается с окружением и не притягивает внимание.",
+      recommendation: "Увеличьте контраст и размер, чтобы CTA стал доминирующим."
     },
     {
       category: "hierarchy",
-      title: "Headline hierarchy is unclear",
-      rationale: "Headline weight is similar to body text, reducing scanability.",
-      recommendation: "Boost font size/weight for the primary headline."
+      title: "Иерархия заголовков неочевидна",
+      rationale: "Заголовок по весу близок к основному тексту, страдает сканируемость.",
+      recommendation: "Усильте размер/начертание основного заголовка."
     },
     {
       category: "layout",
-      title: "Content density feels high",
-      rationale: "Multiple blocks compete for attention at the same level.",
-      recommendation: "Add spacing and group related blocks into clear sections."
+      title: "Высокая плотность контента",
+      rationale: "Несколько блоков конкурируют за внимание на одном уровне.",
+      recommendation: "Добавьте воздуха и сгруппируйте связанные блоки."
     },
     {
       category: "accessibility",
-      title: "Low contrast text area",
-      rationale: "Text sits on a low-contrast background and is hard to read.",
-      recommendation: "Increase contrast or adjust background brightness."
+      title: "Зона с низким контрастом текста",
+      rationale: "Текст на фоне с низким контрастом читается хуже.",
+      recommendation: "Увеличьте контраст или скорректируйте яркость фона."
     }
   ] as const;
 

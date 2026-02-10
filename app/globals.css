@@ -1,14 +1,15 @@
 :root {
   color-scheme: light;
-  --bg: #f6f4ef;
-  --ink: #1b1a17;
-  --muted: #6b6458;
-  --accent: #ff6b00;
+  --bg: #f7f2ea;
+  --ink: #1f1a14;
+  --muted: #7a6f63;
+  --accent: #2b2620;
   --panel: #ffffff;
-  --border: #e5dfd5;
+  --border: #efe4d6;
   --high: #ff4d4f;
   --medium: #ff9f1c;
   --low: #2ec4b6;
+  --cream: #fbf6ee;
 }
 
 * {
@@ -20,7 +21,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Space Grotesk", "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: "Manrope", "Nunito", "Segoe UI", sans-serif;
 }
 
 a {
@@ -32,11 +33,40 @@ button, select, input {
   font: inherit;
 }
 
+h1, h2, h3, h4 {
+  margin: 0 0 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h1 { font-size: 38px; }
+h2 { font-size: 30px; }
+h3 { font-size: 24px; }
+
+p {
+  margin: 0 0 12px;
+}
+
+label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+select {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
 main {
   min-height: 100vh;
   display: flex;
   align-items: stretch;
   justify-content: center;
+  background: radial-gradient(circle at top left, #fdf9f2 0%, #f7f2ea 45%, #efe6dc 100%);
 }
 
 .container {
@@ -60,9 +90,9 @@ main {
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 6px 20px rgba(27, 26, 23, 0.06);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 12px 30px rgba(31, 26, 20, 0.08);
 }
 
 .grid {
@@ -90,12 +120,13 @@ main {
 
 .cta {
   background: var(--accent);
-  color: white;
+  color: #fff;
   border: none;
-  padding: 12px 20px;
+  padding: 14px 24px;
   border-radius: 999px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.15);
 }
 
 .cta:disabled {
@@ -106,8 +137,8 @@ main {
 .ghost {
   background: transparent;
   border: 1px solid var(--border);
-  padding: 10px 16px;
-  border-radius: 12px;
+  padding: 12px 18px;
+  border-radius: 999px;
   cursor: pointer;
 }
 
@@ -118,25 +149,146 @@ main {
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #f1ece4;
+  background: #f2e9dd;
   color: var(--muted);
 }
 
 .issue {
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 20px;
+  padding: 22px;
   margin-bottom: 12px;
   background: #fff;
-}
-
-.issue h4 {
-  margin: 0 0 6px;
+  box-shadow: 0 6px 16px rgba(31, 26, 20, 0.05);
 }
 
 .severity-high { color: var(--high); }
 .severity-medium { color: var(--medium); }
 .severity-low { color: var(--low); }
+
+.severity-high,
+.severity-medium,
+.severity-low {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 14px;
+}
+
+.issue h4 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+
+.issue p {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.upload-shell {
+  min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  justify-content: center;
+}
+
+.upload-center {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.upload-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.upload-controls select {
+  min-width: 220px;
+}
+
+.dropzone {
+  display: block;
+  border: 2px dashed var(--border);
+  border-radius: 20px;
+  padding: 28px;
+  margin-top: 12px;
+  cursor: pointer;
+  background: var(--cream);
+}
+
+.dropzone input {
+  display: none;
+}
+
+.progress-wrap {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #f6f0e8;
+  border: 1px solid var(--border);
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.file-pill {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: #e9dff1;
+  color: #6b5db6;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.file-meta {
+  flex: 1;
+  font-size: 14px;
+}
+
+.file-percent {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.progress-track {
+  height: 10px;
+  background: #e7ded4;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #8d7bff, #6b5db6);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+@media (max-width: 720px) {
+  .upload-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .upload-controls select {
+    min-width: unset;
+  }
+}
 
 .overlay {
   position: absolute;
