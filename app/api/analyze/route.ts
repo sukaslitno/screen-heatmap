@@ -274,7 +274,7 @@ function generateIssues(width: number, height: number, rand: Rand): AnalysisResu
     }
   ] as const;
 
-  const count = rand() < 0.15 ? 0 : 2 + Math.floor(rand() * 3);
+  const count = 2 + Math.floor(rand() * 3);
   const severities: AnalysisResult["issues"][number]["severity"][] = ["high", "medium", "low"];
   const issues: AnalysisResult["issues"] = [];
 
