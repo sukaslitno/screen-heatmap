@@ -6,33 +6,33 @@ import type { AnalysisResult, AnalysisIssue, Severity } from "@/lib/contracts";
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED = ["image/png", "image/jpeg", "image/webp"];
 
-const steps = [
-  "Анализ структуры",
-  "Поиск UX-проблем",
-  "Формирование рекомендаций"
+  const steps = [
+  "Analyzing layout",
+  "Finding UX issues",
+  "Preparing recommendations"
 ];
 
 type Screen = "landing" | "upload" | "processing" | "results";
 
 type ContextData = {
   platform: "web" | "mobile" | "";
-  screenType: "form" | "checkout" | "catalog" | "promo" | "other" | "";
 };
 
 export default function Page() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [context, setContext] = useState<ContextData>({ platform: "", screenType: "" });
+  const [context, setContext] = useState<ContextData>({ platform: "" });
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [filterHigh, setFilterHigh] = useState(false);
   const [hoverIssue, setHoverIssue] = useState<AnalysisIssue | null>(null);
+  const [imageMeta, setImageMeta] = useState<{ width: number; height: number } | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
-  const canAnalyze = Boolean(file && context.platform && context.screenType && !error);
+  const canAnalyze = Boolean(file && context.platform && imageMeta && !error);
 
   const filteredIssues = useMemo(() => {
     if (!result) return [];
@@ -52,23 +52,24 @@ export default function Page() {
     setFile(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
-    setContext({ platform: "", screenType: "" });
+    setContext({ platform: "" });
     setError(null);
     setWarning(null);
     setResult(null);
     setFilterHigh(false);
     setHoverIssue(null);
+    setImageMeta(null);
   }
 
   function validateAndSetFile(next: File) {
     setError(null);
     setWarning(null);
     if (!ALLOWED.includes(next.type)) {
-      setError("Неподдерживаемый тип файла. Разрешены png, jpg, webp.");
+      setError("Unsupported file type. Use PNG, JPG, or WEBP.");
       return;
     }
     if (next.size > MAX_BYTES) {
-      setError("Файл слишком большой. Лимит 8 MB.");
+      setError("File is too large. Limit is 8 MB.");
       return;
     }
     const url = URL.createObjectURL(next);
@@ -77,8 +78,9 @@ export default function Page() {
 
     const img = new Image();
     img.onload = () => {
+      setImageMeta({ width: img.width, height: img.height });
       if (img.width < 640 || img.height < 400) {
-        setWarning("Низкое качество изображения. Результаты могут быть неточными.");
+        setWarning("Low image quality. Results may be less accurate.");
       }
     };
     img.src = url;
@@ -99,7 +101,10 @@ export default function Page() {
       const form = new FormData();
       form.append("file", file);
       form.append("platform", context.platform);
-      form.append("screenType", context.screenType);
+      if (imageMeta) {
+        form.append("width", String(imageMeta.width));
+        form.append("height", String(imageMeta.height));
+      }
 
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -108,14 +113,14 @@ export default function Page() {
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.error || "Ошибка анализа");
+        throw new Error(payload.error || "Analysis failed");
       }
 
       const data = (await res.json()) as AnalysisResult;
       setResult(data);
       setScreen("results");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Ошибка анализа";
+      const message = err instanceof Error ? err.message : "Analysis failed";
       setError(message);
       setScreen("processing");
     } finally {
@@ -129,23 +134,24 @@ export default function Page() {
         <div className="header">
           <div className="brand">UI Heatmap Scanner</div>
           {screen !== "landing" && (
-            <button className="ghost" onClick={() => setScreen("upload")}>Назад</button>
+            <button className="ghost" onClick={() => setScreen("upload")}>Back</button>
           )}
         </div>
 
         {screen === "landing" && (
           <section className="card">
-            <h1>Сканируй UI и находи UX-проблемы</h1>
-            <p>Загрузи один скриншот и получи тепловую карту проблем с рекомендациями.</p>
-            <button className="cta" onClick={() => setScreen("upload")}>Загрузить скрин</button>
+            <h1>Scan UI screens and find UX issues</h1>
+            <p>Upload one screenshot and get a heatmap with structured recommendations.</p>
+            <button className="cta" onClick={() => setScreen("upload")}>Upload screenshot</button>
           </section>
         )}
 
         {screen === "upload" && (
-          <section className="grid">
-            <div className="col-7">
-              <div className="card">
-                <h3>Скрин интерфейса</h3>
+          <section className="upload-shell">
+            <div className="upload-center card">
+              <h2>Upload a screenshot</h2>
+              <p className="muted">PNG, JPG, WEBP up to 8 MB.</p>
+              <label className="dropzone">
                 <input
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
@@ -154,56 +160,47 @@ export default function Page() {
                     if (next) validateAndSetFile(next);
                   }}
                 />
-                {previewUrl && (
-                  <div style={{ marginTop: 16 }}>
-                    <img
-                      src={previewUrl}
-                      alt="Preview"
-                      style={{ maxWidth: "100%", borderRadius: 12, border: "1px solid var(--border)" }}
-                    />
-                  </div>
-                )}
-                {error && <p style={{ color: "var(--high)" }}>{error}</p>}
-                {warning && <p style={{ color: "var(--medium)" }}>{warning}</p>}
-              </div>
+                <div>
+                  <strong>Drag & drop</strong> or click to browse
+                </div>
+              </label>
+              {previewUrl && (
+                <div style={{ marginTop: 16 }}>
+                  <img
+                    src={previewUrl}
+                    alt="Preview"
+                    style={{ maxWidth: "100%", borderRadius: 12, border: "1px solid var(--border)" }}
+                  />
+                </div>
+              )}
+              {error && <p style={{ color: "var(--high)" }}>{error}</p>}
+              {warning && <p style={{ color: "var(--medium)" }}>{warning}</p>}
             </div>
-            <div className="col-5">
-              <div className="card">
-                <h3>Контекст</h3>
-                <label>Платформа</label>
+
+            <div className="upload-controls card">
+              <div>
+                <label>Platform</label>
                 <select
                   value={context.platform}
-                  onChange={(e) => setContext((prev) => ({ ...prev, platform: e.target.value as ContextData["platform"] }))}
+                  onChange={(e) =>
+                    setContext((prev) => ({ ...prev, platform: e.target.value as ContextData["platform"] }))
+                  }
                 >
-                  <option value="">Выберите</option>
+                  <option value="">Choose</option>
                   <option value="web">Web</option>
                   <option value="mobile">Mobile</option>
                 </select>
-                <label style={{ display: "block", marginTop: 12 }}>Тип экрана</label>
-                <select
-                  value={context.screenType}
-                  onChange={(e) => setContext((prev) => ({ ...prev, screenType: e.target.value as ContextData["screenType"] }))}
-                >
-                  <option value="">Выберите</option>
-                  <option value="form">Form</option>
-                  <option value="checkout">Checkout</option>
-                  <option value="catalog">Catalog</option>
-                  <option value="promo">Promo</option>
-                  <option value="other">Other</option>
-                </select>
-                <div style={{ marginTop: 20 }}>
-                  <button className="cta" disabled={!canAnalyze} onClick={startAnalysis}>
-                    Запустить анализ
-                  </button>
-                </div>
               </div>
+              <button className="cta" disabled={!canAnalyze} onClick={startAnalysis}>
+                Run analysis
+              </button>
             </div>
           </section>
         )}
 
         {screen === "processing" && (
           <section className="card" style={{ textAlign: "center" }}>
-            <h2>Анализируем…</h2>
+            <h2>Analyzing…</h2>
             <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 16 }}>
               {steps.map((step, index) => (
                 <span
@@ -221,7 +218,7 @@ export default function Page() {
             {error && (
               <div style={{ marginTop: 20 }}>
                 <p style={{ color: "var(--high)" }}>{error}</p>
-                <button className="cta" onClick={startAnalysis}>Повторить</button>
+                <button className="cta" onClick={startAnalysis}>Retry</button>
               </div>
             )}
           </section>
@@ -231,7 +228,7 @@ export default function Page() {
           <section className="grid">
             <div className="col-7">
               <div className="card" style={{ position: "relative" }}>
-                <h3>Тепловая карта</h3>
+                <h3>Heatmap</h3>
                 {previewUrl ? (
                   <div style={{ position: "relative" }}>
                     <img
@@ -244,7 +241,7 @@ export default function Page() {
                       <div
                         key={issue.id}
                         className={`overlay ${issue.severity}`}
-                        style={bboxToStyle(issue, imgRef.current)}
+                        style={bboxToStyle(issue, imgRef.current, result.image)}
                         onMouseEnter={() => setHoverIssue(issue)}
                         onMouseLeave={() => setHoverIssue(null)}
                       />
@@ -260,26 +257,26 @@ export default function Page() {
                     )}
                   </div>
                 ) : (
-                  <p>Нет изображения</p>
+                  <p>No image</p>
                 )}
               </div>
             </div>
             <div className="col-5">
               <div className="card">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3>Проблемы</h3>
+                  <h3>Issues</h3>
                   <select value={filterHigh ? "high" : "all"} onChange={(e) => setFilterHigh(e.target.value === "high")}>
-                    <option value="all">Все</option>
-                    <option value="high">Только High</option>
+                    <option value="all">All</option>
+                    <option value="high">High only</option>
                   </select>
                 </div>
                 {filteredIssues.length === 0 ? (
                   <div>
-                    <p><strong>Критичных проблем не найдено.</strong></p>
+                    <p><strong>No critical issues found.</strong></p>
                     <ul>
-                      <li>Проверь иерархию заголовков и основного CTA.</li>
-                      <li>Убедись, что контраст соответствует accessibility.</li>
-                      <li>Сократи шум и второстепенные элементы.</li>
+                      <li>Double-check headline hierarchy and primary CTA emphasis.</li>
+                      <li>Ensure contrast meets accessibility standards.</li>
+                      <li>Reduce visual noise and secondary elements.</li>
                     </ul>
                   </div>
                 ) : (
@@ -288,11 +285,11 @@ export default function Page() {
                       <div className={`severity-${issue.severity}`}>{issue.severity.toUpperCase()}</div>
                       <h4>{issue.title}</h4>
                       <p>{issue.rationale}</p>
-                      <p><strong>Что сделать:</strong> {issue.recommendation}</p>
+                      <p><strong>What to do:</strong> {issue.recommendation}</p>
                     </div>
                   ))
                 )}
-                <button className="ghost" onClick={resetAll}>Проанализировать другой экран</button>
+                <button className="ghost" onClick={resetAll}>Analyze another screen</button>
               </div>
             </div>
           </section>
@@ -302,12 +299,17 @@ export default function Page() {
   );
 }
 
-function bboxToStyle(issue: AnalysisIssue, imgEl: HTMLImageElement | null) {
+function bboxToStyle(
+  issue: AnalysisIssue,
+  imgEl: HTMLImageElement | null,
+  imageMeta?: { width: number; height: number }
+) {
   if (!imgEl) return { display: "none" } as const;
-  const { naturalWidth, naturalHeight } = imgEl;
+  const baseWidth = imageMeta?.width ?? imgEl.naturalWidth;
+  const baseHeight = imageMeta?.height ?? imgEl.naturalHeight;
   const rect = imgEl.getBoundingClientRect();
-  const scaleX = rect.width / naturalWidth;
-  const scaleY = rect.height / naturalHeight;
+  const scaleX = rect.width / baseWidth;
+  const scaleY = rect.height / baseHeight;
   return {
     left: issue.bbox.x * scaleX,
     top: issue.bbox.y * scaleY,
