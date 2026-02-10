@@ -1,0 +1,168 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f4ef;
+  --ink: #1b1a17;
+  --muted: #6b6458;
+  --accent: #ff6b00;
+  --panel: #ffffff;
+  --border: #e5dfd5;
+  --high: #ff4d4f;
+  --medium: #ff9f1c;
+  --low: #2ec4b6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Space Grotesk", "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button, select, input {
+  font: inherit;
+}
+
+main {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  padding: 32px 24px 64px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 6px 20px rgba(27, 26, 23, 0.06);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 24px;
+}
+
+.col-5 {
+  grid-column: span 5;
+}
+
+.col-7 {
+  grid-column: span 7;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .col-5, .col-7 {
+    grid-column: span 1;
+  }
+}
+
+.cta {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1ece4;
+  color: var(--muted);
+}
+
+.issue {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.issue h4 {
+  margin: 0 0 6px;
+}
+
+.severity-high { color: var(--high); }
+.severity-medium { color: var(--medium); }
+.severity-low { color: var(--low); }
+
+.overlay {
+  position: absolute;
+  border: 2px solid var(--high);
+  border-radius: 6px;
+  background: rgba(255, 77, 79, 0.12);
+}
+
+.overlay.medium {
+  border-color: var(--medium);
+  background: rgba(255, 159, 28, 0.12);
+}
+
+.overlay.low {
+  border-color: var(--low);
+  background: rgba(46, 196, 182, 0.12);
+}
+
+.tooltip {
+  position: absolute;
+  transform: translateY(-100%);
+  background: #1b1a17;
+  color: white;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  max-width: 220px;
+  z-index: 2;
+}
