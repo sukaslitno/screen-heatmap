@@ -32,6 +32,7 @@ export default function Page() {
   const [imageMeta, setImageMeta] = useState<{ width: number; height: number } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploading, setUploading] = useState(false);
+  const [imageBox, setImageBox] = useState<{ width: number; height: number } | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const canAnalyze = Boolean(file && context.platform && imageMeta && !error && !uploading);
@@ -63,6 +64,7 @@ export default function Page() {
     setImageMeta(null);
     setUploadProgress(0);
     setUploading(false);
+    setImageBox(null);
   }
 
   function validateAndSetFile(next: File) {
@@ -270,13 +272,21 @@ export default function Page() {
                       ref={imgRef}
                       src={previewUrl}
                       alt="Result"
+                      onLoad={() => {
+                        const el = imgRef.current;
+                        if (!el) return;
+                        setImageBox({
+                          width: el.clientWidth,
+                          height: el.clientHeight
+                        });
+                      }}
                       style={{ width: "100%", borderRadius: 12, border: "1px solid var(--border)" }}
                     />
                     {result.issues.map((issue) => (
                       <div
                         key={issue.id}
                         className={`overlay ${issue.severity}`}
-                        style={bboxToStyle(issue, imgRef.current, result.image)}
+                        style={bboxToStyle(issue, imageBox, result.image)}
                         onMouseEnter={() => setHoverIssue(issue)}
                         onMouseLeave={() => setHoverIssue(null)}
                       />
@@ -336,15 +346,14 @@ export default function Page() {
 
 function bboxToStyle(
   issue: AnalysisIssue,
-  imgEl: HTMLImageElement | null,
+  imageBox: { width: number; height: number } | null,
   imageMeta?: { width: number; height: number }
 ) {
-  if (!imgEl) return { display: "none" } as const;
-  const baseWidth = imageMeta?.width ?? imgEl.naturalWidth;
-  const baseHeight = imageMeta?.height ?? imgEl.naturalHeight;
-  const rect = imgEl.getBoundingClientRect();
-  const scaleX = rect.width / baseWidth;
-  const scaleY = rect.height / baseHeight;
+  if (!imageBox) return { display: "none" } as const;
+  const baseWidth = imageMeta?.width ?? imageBox.width;
+  const baseHeight = imageMeta?.height ?? imageBox.height;
+  const scaleX = imageBox.width / baseWidth;
+  const scaleY = imageBox.height / baseHeight;
   return {
     left: issue.bbox.x * scaleX,
     top: issue.bbox.y * scaleY,
